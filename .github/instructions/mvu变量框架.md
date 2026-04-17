@@ -169,3 +169,37 @@ eventOn(Mvu.events.VARIABLE_UPDATE_ENDED, variables => {
 ```
 
 由此我们可以做非常多功能.
+
+其中一些是在 `schema.ts` 中能用 zod 4 直接做到的:
+
+### 限制依存度在 0 和 100 之间
+
+```js
+await waitGlobalInitialized('Mvu');
+eventOn(Mvu.events.VARIABLE_UPDATE_ENDED, variables => {
+  _.update(variables, 'stat_data.白娅.依存度', value => _.clamp(value, 0, 100));
+});
+```
+
+### 如果数量不为正数应该直接删除物品
+
+```js
+await waitGlobalInitialized('Mvu');
+eventOn(Mvu.events.VARIABLE_UPDATE_ENDED, variables => {
+  _.update(variables, 'stat_data.主角.物品栏', data => _.pickBy(data, ({ 数量 }) => 数量 > 0));
+});
+```
+
+### 称号有数量上限，依存度越高越多
+
+```js
+await waitGlobalInitialized('Mvu');
+eventOn(Mvu.events.VARIABLE_UPDATE_ENDED, variables => {
+  _.update(variables, 'stat_data.白娅.称号', data =>
+    _(data)
+      .entries()
+      .takeRight(Math.ceil(_.get(variables, 'stat_data.白娅.依存度') / 10))
+      .value(),
+  );
+});
+```

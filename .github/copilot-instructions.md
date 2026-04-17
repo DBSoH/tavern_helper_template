@@ -1,4 +1,8 @@
-# 酒馆助手前端界面或脚本编写
+---
+alwaysApply: true
+---
+
+# 项目基本概念
 
 本项目主要用于编写酒馆助手 ([Tavern Helper](https://n0vi028.github.io/JS-Slash-Runner-Doc/guide/关于酒馆助手/介绍.html)) 所支持的前端界面或脚本. 它们在酒馆 (SillyTavern) 中以前台或后台的形式运行, 可以在代码中直接使用酒馆助手所提供的接口, 进而:
 
@@ -108,3 +112,215 @@ import css_content from './style.scss?raw';
 来通过 html-loader 将 html 文件内容最小化后作为字符串导入.
 
 ### 导入 markdown
+
+项目还支持用 `import markdown from './文件.md'` 来通过 remark-loader 将 markdown 文件内容解析为 html 后作为字符串导入.
+
+### 导入 vue
+
+项目直接支持用 `import Component from './文件.vue'`
+来导入 vue 组件, 如果要设计界面你应该优先使用 vue 组件 (含 pinia 和 vue-router).
+
+### 为前端界面导入样式
+
+前端界面支持在 typescript 中 `import './index.scss'` 来导入全局 scss 文件, 并自动将它们打包到最终的 `dist/**/index.html`
+中的 `<head>` 部分.
+
+## 最佳实践
+
+通用于前端界面和脚本:
+
+### 使用 typescript 而非 javascript
+
+typescript 更容易写对, 你应该使用 typescript 而非 javascript
+
+### 尽量使用项目参考文件中的功能
+
+项目参考文件中的功能往往更为简单正确, 因此你应该尽量使用它们. 例如:
+
+- 尽量使用第三方库, 例如:
+  - 使用 jquery 而不是 javascript 内置的 DOM 操作
+  - 使用 jqueryui 实现拖动效果 (vue 中则使用 vueuse 等第三方库)
+  - 使用 zod 处理数据校验和纠错而不是 if else, 并用 `z.prettifyError()` 来格式化错误信息
+  - 使用 gsap 制作打字机等所有动画效果
+  - ...
+- 尽量使用酒馆助手给出的接口, 例如:
+  - 使用 `getIframeName()` 而不是 `(this.frameElement as Element).id`
+  - ...
+
+### 优先使用酒馆助手提供的接口
+
+**酒馆助手所提供的接口抽象层次更高, 你应该优先使用 `@types` 文件夹中其他文件定义的酒馆助手接口**, 而不是
+`@types/iframe/exported.sillytavern.d.ts` 中定义的酒馆内置接口或 STScript 命令.
+
+- 使用 `@types/function/chat_message.d.ts` 中定义的 `getChatMessages()`、`setChatMessages()` 等来获取、修改消息楼层
+- 使用 `@types/function/worldbook.d.ts` 中定义的 `getWorldbook()`、`replaceWorldbook()` 等来获取、修改世界书条目
+- 使用 `@types/function/variables.d.ts` 中定义的 `getVariables()`、`replaceVariables()` 等来获取、修改酒馆变量
+- ……
+
+### 优先使用 vue 编写界面
+
+vue 相比于 jquery 或 DOM 操作更为简单, 因此你应该尽量使用 vue
+(可使用 pinia、vue-router 或自己添加其他第三方库) 来编写前端界面, 但要注意 vue-router 的 `createRouter()` 不能写在
+`$(() => {})` 中, 必须在全局执行.
+
+当需要监听 vue 的响应式数据变化并存入酒馆数据时 (如酒馆变量、世界书……), 你应该先用 `klona()`
+来去除 proxy 层, 以在脚本中编写 vue 并提供用户设置为例:
+
+```typescript
+const Settings = z.object({
+  /*...*/
+}); // 用 zod 定义设置的类型和默认值
+const settings = ref(Settings.parse(getVariables({ type: 'script', script_id: getScriptId() })));
+watchEffect(() => replaceVariables(klona(settings.value), { type: 'script', script_id: getScriptId() }));
+```
+
+前端界面和脚本都是 iframe, 因此你在使用 vue-router 时, 应该使用 `history: createMemoryHistory()`
+来创建路由, 否则将无法正常路由.
+
+### 优先使用 pinia、zod 管理数据状态
+
+当需要从酒馆读取配置/数据时, 你应该用 pinia 实现响应式读写:
+
+```typescript
+const Settings = z.object({ button_selected: z.boolean().default(false) }).prefault({});
+export const useSettingsStore = defineStore('settings', () => {
+  const settings = ref(Settings.parse(getVariables({ type: 'script', script_id: getScriptId() })));
+  watchEffect(() => {
+    replaceVariables(klona(settings.value), { type: 'script', script_id: getScriptId() });
+  });
+  return { settings };
+});
+```
+
+### 优先使用 tailwindcss 和 `<style scoped>` 进行样式设计
+
+你可以直接在项目中使用 tailwindcss, 而无需导入任何 css 文件.
+
+在设计样式时, 你应该优先使用 tailwindcss 直接在 vue 组件的 `<template>` 内书写, 对于无法这样做的情况则使用
+`<style scoped>` 标签.
+
+### 尝试使用 @pixi/react 编写界面
+
+当有很多多媒体资源时, 我们的前端界面更像是一个完整的游戏, 因此你应该使用 @pixi/react 在 .tsx 中编写界面, 并使用 pixi.js 来实现资源预先加载等逻辑.
+
+### 正确在加载、卸载前端界面或脚本时执行功能
+
+你应该总是在加载时才执行代码, 而不该直接在全局作用域中执行代码.
+
+项目最终打包生成的 `dist/**/index.html` 或 `dist/**/index.js` 可能先上传到网上, 再以 `$('body').load(网络链接)` 或
+`import '网络链接'` 的方式加载到酒馆中. `document.addEventListener("DOMContentLoaded", fn)`
+在这个加载过程中不会被触发, 因此禁止使用 `DOMContentLoaded` 作为加载时的执行时机.
+
+你应该使用 jquery 来在加载时执行功能:
+
+```typescript
+$(() => {
+  toastr.success('加载成功');
+});
+```
+
+同样地, 使用 jquery 及 `'pagehide'` 事件 (而不是 `'unload'`) 来在卸载时执行功能:
+
+```typescript
+$(window).on('pagehide', () => {
+  toastr.success('卸载成功');
+});
+```
+
+### 使用 console、throw 和 errorCatched 合理记录日志和错误
+
+你应该在代码的关键节点使用 `console.info` 简洁地记录日志, 并尽量保持日志与最新代码逻辑的一致性.
+
+对于可恢复的错误, 使用 `console.warn`、`console.error` 记录日志;
+
+对于让前端界面、脚本无法继续使用的错误, 你应该使用 `throw Error`, 而用 errorCatched 转换顶部函数从而对其进行记录, 例如:
+
+```typescript
+function init() {
+  /*... */
+}
+
+$(() => {
+  errorCatched(init)();
+});
+```
+
+### 重载前端界面或脚本
+
+如果有完全重载前端界面或脚本的需求, 你应该使用
+`window.location.reload()`. 如聊天文件变更时重新载入前端界面或脚本, 你可以用 `util/script.ts` 中定义好了的工具函数:
+
+```ts
+export function reloadOnChatChange(): EventOnReturn {
+  let chat_id = SillyTavern.getCurrentChatId();
+  return eventOn(tavern_events.CHAT_CHANGED, new_chat_id => {
+    if (chat_id !== new_chat_id) {
+      chat_id = new_chat_id;
+      window.location.reload();
+    }
+  });
+}
+```
+
+### 尝试使用 @pixi/react 编写界面
+
+当有很多多媒体资源时, 我们的前端界面更像是一个完整的游戏, 因此你应该使用 @pixi/react 在 .tsx 中编写界面, 并使用 pixi.js 来实现资源预先加载等逻辑.
+
+### 正确在加载、卸载前端界面或脚本时执行功能
+
+你应该总是在加载时才执行代码, 而不该直接在全局作用域中执行代码.
+
+项目最终打包生成的 `dist/**/index.html` 或 `dist/**/index.js` 可能先上传到网上, 再以 `$('body').load(网络链接)` 或
+`import '网络链接'` 的方式加载到酒馆中. `document.addEventListener("DOMContentLoaded", fn)`
+在这个加载过程中不会被触发, 因此禁止使用 `DOMContentLoaded` 作为加载时的执行时机.
+
+你应该使用 jquery 来在加载时执行功能:
+
+```typescript
+$(() => {
+  toastr.success('加载成功');
+});
+```
+
+同样地, 使用 jquery 及 `'pagehide'` 事件 (而不是 `'unload'`) 来在卸载时执行功能:
+
+```typescript
+$(window).on('pagehide', () => {
+  toastr.success('卸载成功');
+});
+```
+
+### 使用 console、throw 和 errorCatched 合理记录日志和错误
+
+你应该在代码的关键节点使用 `console.info` 简洁地记录日志, 并尽量保持日志与最新代码逻辑的一致性.
+
+对于可恢复的错误, 使用 `console.warn`、`console.error` 记录日志;
+
+对于让前端界面、脚本无法继续使用的错误, 你应该使用 `throw Error`, 而用 errorCatched 转换顶部函数从而对其进行记录, 例如:
+
+```typescript
+function init() {
+  /*... */
+}
+
+$(() => {
+  errorCatched(init)();
+});
+```
+
+### 重载前端界面或脚本
+
+如果有完全重载前端界面或脚本的需求, 你应该使用
+`window.location.reload()`. 如聊天文件变更时重新载入前端界面或脚本, 你可以用 `util/script.ts` 中定义好了的工具函数:
+
+```ts
+export function reloadOnChatChange(): EventOnReturn {
+  let chat_id = SillyTavern.getCurrentChatId();
+  return eventOn(tavern_events.CHAT_CHANGED, new_chat_id => {
+    if (chat_id !== new_chat_id) {
+      chat_id = new_chat_id;
+      window.location.reload();
+    }
+  });
+}
+```
