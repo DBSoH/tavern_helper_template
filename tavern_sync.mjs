@@ -63298,6 +63298,10 @@ const Script = strictObject({
     buttons: array(ScriptButton).prefault([]),
   }).prefault({}),
   data: record(schemas_string(), any()).prefault({}),
+  export_with: object({
+    data: schemas_boolean().prefault(true),
+    button: schemas_boolean().prefault(true),
+  }).prefault({ data: true, button: true }),
 }).superRefine((data, context) => {
   if (data.content === undefined && data.file === undefined) {
     ['content', 'file'].forEach(key =>
@@ -64021,6 +64025,7 @@ const extensions_zh_zh_to_en_map = {
   可见: 'visible',
   图标: 'icon',
   颜色: 'color',
+  导出时包含: 'export_with',
 };
 const extensions_zh_ScriptButton = strictObject({
   名称: coerce_string(),
@@ -64039,6 +64044,10 @@ const extensions_zh_Script = strictObject({
     按钮列表: array(extensions_zh_ScriptButton).prefault([]),
   }).prefault({}),
   数据: record(schemas_string(), any()).prefault({}),
+  导出时包含: object({
+    数据: schemas_boolean().prefault(true),
+    按钮: schemas_boolean().prefault(true),
+  }).prefault({ 数据: true, 按钮: true }),
 }).superRefine((data, context) => {
   if (data.内容 === undefined && data.文件 === undefined) {
     ['内容', '文件'].forEach(key =>
